@@ -5,7 +5,7 @@ exec(open("databayes/version.py").read())
 
 
 setup(
-    name="mosaic",
+    name="databayes",
     version=__version__,
     url="https://github.com/edgemind-sas/databayes",
     author="Roland Donat",
@@ -43,8 +43,10 @@ setup(
         "tzlocal==5.0.1",
         "tqdm==4.64.1",
         "colored==2.2.3",
+        "pandas==2.2.2",
         "pymongo==4.4.1",
         "influxdb-client==1.37.0",
+        "mysql-connector-python==8.3.0",
     ],
     zip_safe=False,
 )

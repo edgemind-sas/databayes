@@ -56,15 +56,17 @@ class DBMySQL(DBBase):
         """
         Inserts a new record or multiple records into a given table.
         """
+        # If data is a single dictionary, make it a list of dictionaries
+        if isinstance(data, dict):
+            data = [data]
+
         placeholders = ", ".join(["%s"] * len(data[0]))
         columns = ", ".join(data[0].keys())
         sql = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
         try:
             cursor = self.bkd.cursor()
-            if isinstance(data, list):
-                cursor.executemany(sql, [tuple(d.values()) for d in data])
-            else:
-                cursor.execute(sql, tuple(data.values()))
+            # Since data is now guaranteed to be a list of dictionaries, we can proceed.
+            cursor.executemany(sql, [tuple(d.values()) for d in data])
             self.bkd.commit()
             cursor.close()
         except Error as e:

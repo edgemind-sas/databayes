@@ -1,6 +1,8 @@
 # databayes
 
+## Objectives
 Collection of data management and data science tools
 
-Packages :
-- [DB](./databayes/db/README.md)
+## Tutorials
+
+- [DB package](./tutorials/db/db_tutorials.md)

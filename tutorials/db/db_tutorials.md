@@ -1,6 +1,6 @@
-# Databayes DB package
+# Databayes DB tutorials
 
-## DBMySQL
+## DBMySQL connector
 
 In this tutorial, we'll go through setting up a simple MySQL database using Docker and interacting with it using a Python wrapper class `DBMySQL`. We'll start by setting up the MySQL database with Docker, populate it with some fake data, and then use the `DBMySQL` class to execute basic database operations.
 
