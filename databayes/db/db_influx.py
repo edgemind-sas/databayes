@@ -5,7 +5,6 @@ interacting with the InfluxDB, including data insertion, retrieval, update, and 
 """
 
 import pydantic
-import pkg_resources
 from tzlocal import get_localzone
 from influxdb_client.client.write_api import SYNCHRONOUS
 from influxdb_client import InfluxDBClient, Point
@@ -13,12 +12,9 @@ from .db_base import DBBase, DMBSConfigBase
 import pandas as pd
 import ast
 
-installed_pkg = {pkg.key for pkg in pkg_resources.working_set}
-if 'ipdb' in installed_pkg:
-    import ipdb  # noqa: F401
 
 def try_convert_to_dict(x):
-    
+
     if isinstance(x, str) and x.startswith("{") and x.endswith("}"):
         try:
             return ast.literal_eval(x)
@@ -28,7 +24,7 @@ def try_convert_to_dict(x):
     else:
         return x
 
-    
+
 class InfluxDBConfig(DMBSConfigBase):
     """
     Configuration class for connecting to an InfluxDB instance.
@@ -38,9 +34,11 @@ class InfluxDBConfig(DMBSConfigBase):
         org (str): Organization for the InfluxDB server.
         token (str): Authorization token for the InfluxDB server.
     """
+
     url: str = pydantic.Field(default="", description="URL of InfluxDB")
     org: str = pydantic.Field(default="", description="The Organization of InfluxDB")
     token: str = pydantic.Field(default="", description="InfluxDB authorization token")
+
 
 class DBInfluxDB(DBBase):
     """
@@ -51,23 +49,22 @@ class DBInfluxDB(DBBase):
         config (InfluxDBConfig): An instance of the `InfluxDBConfig` class that holds
                                  the connection configuration details.
     """
-    config: InfluxDBConfig = \
-        pydantic.Field(default=InfluxDBConfig(),
-                       description="The InfluxDB configuration")
+
+    config: InfluxDBConfig = pydantic.Field(
+        default=InfluxDBConfig(), description="The InfluxDB configuration"
+    )
 
     def connect(self, **params):
         """
         Establishes a connection to an InfluxDB instance using parameters from the configuration.
-        
+
         Returns:
             bool: True if connection is successful, False otherwise.
         """
         self.bkd = InfluxDBClient(
-            url=self.config.url,
-            token=self.config.token,
-            org=self.config.org,
-            **params)
-        
+            url=self.config.url, token=self.config.token, org=self.config.org, **params
+        )
+
         try:
             self.bkd.ping()
             if self.logger:
@@ -84,7 +81,7 @@ class DBInfluxDB(DBBase):
 
         Args:
             endpoint (str): The endpoint in the format `bucket/measurement`.
-        
+
         Returns:
             tuple: A tuple containing bucket and measurement.
         """
@@ -92,7 +89,7 @@ class DBInfluxDB(DBBase):
             bucket = self.name
             measurement = endpoint
         else:
-            parts = endpoint.split('/')
+            parts = endpoint.split("/")
             bucket = parts[0]
             measurement = parts[1] if len(parts) > 1 else None
         return bucket, measurement
@@ -109,8 +106,7 @@ class DBInfluxDB(DBBase):
         if not found_bucket:
             if self.logger:
                 self.logger.info(f"Creating bucket '{bucket_name}'.")
-            bucket_api.create_bucket(bucket_name=bucket_name,
-                                     org=self.config.org)
+            bucket_api.create_bucket(bucket_name=bucket_name, org=self.config.org)
 
     def put(self, endpoint, data=[], index=[], time_field="_time", **params):
         """
@@ -121,14 +117,14 @@ class DBInfluxDB(DBBase):
             data (list): List of data items to be inserted.
             index (list): List of indices.
             time_field (str): Field name for the time stamp.
-        
+
         Returns:
             dict: A dictionary with success and failure counts.
         """
         bucket, measurement = self._resolve_bucket_measurement(endpoint)
 
         self._ensure_bucket_exists(bucket)
-        
+
         points = []  # Pour stocker tous les points
 
         for item in data:
@@ -143,7 +139,7 @@ class DBInfluxDB(DBBase):
             if time_field in item:
                 point.time(item[time_field])
                 # Additionally, store the timestamp in a custom field with the original column name
-                #point.field(time_field, item[time_field])
+                # point.field(time_field, item[time_field])
 
             for idx in index:  # tags
                 if idx in item and idx != time_field:
@@ -152,14 +148,14 @@ class DBInfluxDB(DBBase):
                         idx = str(value)
                     point.tag(idx, value)
 
-            # Traiter chaque clé/valeur dans item comme un champ, 
+            # Traiter chaque clé/valeur dans item comme un champ,
             # sauf si c'est dans index, "measurement" ou "time_field"
             for key, value in item.items():
                 if key not in index and key != "measurement" and key != time_field:
                     if not isinstance(value, (str, int, float)):
                         value = str(value)
                     point.field(key, value)
-            
+
             points.append(point)  # Ajouter au tableau des points
 
         try:
@@ -171,16 +167,19 @@ class DBInfluxDB(DBBase):
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Failed to put data in InfluxDB: {str(e)}")
-            print(f"Erreur: {e}")  
+            print(f"Erreur: {e}")
             return {"success_count": 0, "failure_count": len(data)}
 
-    def get(self, endpoint,
-            filter={},
-            projection=[],
-            limit=0,
-            time_field="_time",
-            as_df=False,
-            **params):
+    def get(
+        self,
+        endpoint,
+        filter={},
+        projection=[],
+        limit=0,
+        time_field="_time",
+        as_df=False,
+        **params,
+    ):
         """
         Retrieves data from InfluxDB based on query parameters.
 
@@ -191,14 +190,16 @@ class DBInfluxDB(DBBase):
             limit (int): Maximum number of records to retrieve.
             keep_influx_id (bool): Whether to keep time field in results.
             time_field (str): Field name for the timestamp.
-        
+
         Returns:
             list: List of records retrieved from InfluxDB.
-        """        
+        """
         bucket, measurement = self._resolve_bucket_measurement(endpoint)
 
         if self.logger:
-            self.logger.debug(f"Retrieving data from bucket: {bucket}, measurement: {measurement}")
+            self.logger.debug(
+                f"Retrieving data from bucket: {bucket}, measurement: {measurement}"
+            )
 
         query = f'from(bucket: "{bucket}") |> range(start: 0)'
         if measurement:
@@ -209,16 +210,18 @@ class DBInfluxDB(DBBase):
             query += f' |> filter(fn: (r) => {" and ".join(filter_conditions)})'
 
         if projection:
-            fields_filter = ' or '.join([f'r._field == "{field}"' for field in projection])
-            query += f' |> filter(fn: (r) => {fields_filter})'
+            fields_filter = " or ".join(
+                [f'r._field == "{field}"' for field in projection]
+            )
+            query += f" |> filter(fn: (r) => {fields_filter})"
 
         if limit > 0:
-            query += f' |> limit(n: {limit})'
+            query += f" |> limit(n: {limit})"
 
         if self.logger:
             self.logger.debug(f"Constructed InfluxDB Query: {query}")
 
-#        try:
+        #        try:
         result = self.bkd.query_api().query(query)
 
         data = []
@@ -226,28 +229,36 @@ class DBInfluxDB(DBBase):
             for record in table.records:
                 item = record.values
                 data.append(item)
-                
+
         df = pd.DataFrame(data)
 
-        not_tag_fields = ["result", "table", "_start", "_stop",
-                          "_time", "_value", "_field", "_measurement"]
+        not_tag_fields = [
+            "result",
+            "table",
+            "_start",
+            "_stop",
+            "_time",
+            "_value",
+            "_field",
+            "_measurement",
+        ]
         tag_fields = [var for var in df.columns if not (var in not_tag_fields)]
-        
+
         # Convert to wide format by pivoting
-        wide_df = df.pivot(index=tag_fields + ['_time'],
-                           columns='_field',
-                           values='_value').reset_index()
+        wide_df = df.pivot(
+            index=tag_fields + ["_time"], columns="_field", values="_value"
+        ).reset_index()
         wide_df.columns.name = None
         # Get the local timezone
         local_timezone = get_localzone()
-        
+
         # Apply the local timezone to the '_time' column
-        wide_df['_time'] = pd.to_datetime(wide_df['_time'], utc=True)
-        wide_df['_time'] = wide_df['_time'].dt.tz_convert(local_timezone)
+        wide_df["_time"] = pd.to_datetime(wide_df["_time"], utc=True)
+        wide_df["_time"] = wide_df["_time"].dt.tz_convert(local_timezone)
 
         wide_df = wide_df.applymap(try_convert_to_dict)
         # Optionally rename '_time' index back to 'time_field'
-        if time_field != '_time':
+        if time_field != "_time":
             wide_df.rename(columns={"_time": time_field}, inplace=True)
 
         if self.logger:
@@ -255,7 +266,7 @@ class DBInfluxDB(DBBase):
 
         # Returning the data in wide format
         return wide_df if as_df else wide_df.to_dict("records")
-                
+
         # except Exception as e:
         #     if self.logger:
         #         self.logger.error(f"Failed to retrieve data from InfluxDB: {str(e)}")
@@ -270,7 +281,7 @@ class DBInfluxDB(DBBase):
             time_field (datetime): The timestamp to associate with the update.
             tags (dict): The tags identifying records to update.
             fields (dict): The fields to update with their new values.
-        
+
         Returns:
             bool: True if the update is successful, False otherwise.
         """
@@ -282,7 +293,7 @@ class DBInfluxDB(DBBase):
 
         # # Créez un nouveau point avec les tags et les champs mis à jour
         # new_point = {
-        #     "measurement": endpoint.split('/')[-1],  
+        #     "measurement": endpoint.split('/')[-1],
         #     "time_field": formatted_timestamp,
         #     **tags,  # Tags existants à conserver
         #     **fields  # Nouveaux champs à mettre à jour
@@ -292,21 +303,19 @@ class DBInfluxDB(DBBase):
         # data_to_update.append(new_point)
 
         # Appelle la méthode put pour écrire la mise à jour dans InfluxDB
-        result = self.put(endpoint=endpoint,
-                          data=[data],
-                          index=index,
-                          time_field=time_field,
-                          **params)
+        result = self.put(
+            endpoint=endpoint, data=[data], index=index, time_field=time_field, **params
+        )
 
         # Vous pouvez vérifier le résultat et agir en conséquence
-        if result['failure_count'] > 0:
+        if result["failure_count"] > 0:
             if self.logger:
                 self.logger.error(f"Failed to update data in InfluxDB: {result}")
-            return False 
+            return False
         else:
             if self.logger:
                 self.logger.info(f"Data updated in InfluxDB: {result}")
-            return True 
+            return True
 
     def reset(self, endpoint=None, **params):
         """
@@ -319,7 +328,7 @@ class DBInfluxDB(DBBase):
             bucket = self.name
         else:
             bucket, measurement = self._resolve_bucket_measurement(endpoint)
-            
+
         # Suppression du bucket
         buckets_api = self.bkd.buckets_api()
         bucket_obj = buckets_api.find_bucket_by_name(bucket)
@@ -348,20 +357,20 @@ class DBInfluxDB(DBBase):
 
         Args:
             endpoint (str): The endpoint to measure size for.
-        
+
         Returns:
             int: The number of records under the endpoint.
         """
         bucket, measurement = self._resolve_bucket_measurement(endpoint)
-    
+
         query = f'from(bucket: "{bucket}") |> range(start: -1y) |> filter(fn: (r) => r["_measurement"] == "{measurement}") |> count(column: "_value")'
         tables = self.bkd.query_api().query(query, org=self.config.org)
-    
+
         count = 0
         for table in tables:
             for record in table.records:
                 count += record.get_value()
-    
+
         return count
 
     def delete(self, endpoint, start_timestamp, stop_timestamp, tags):
@@ -373,33 +382,41 @@ class DBInfluxDB(DBBase):
             start_timestamp (datetime): Start timestamp for the deletion range.
             stop_timestamp (datetime): Stop timestamp for the deletion range.
             tags (dict): Tags that data to be deleted must match.
-        
+
         Returns:
             bool: True if deletion is successful, False otherwise.
         """
         bucket, measurement = self._resolve_bucket_measurement(endpoint)
-    
+
         delete_predicate = f'_measurement="{measurement}"'
         for tag_key, tag_value in tags.items():
             delete_predicate += f' AND {tag_key}="{tag_value}"'
-        
+
         try:
-            formatted_start = start_timestamp.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-            formatted_stop = stop_timestamp.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-            self.bkd.delete_api().delete(start=formatted_start, stop=formatted_stop, predicate=delete_predicate, bucket=bucket, org=self.config.org)
+            formatted_start = start_timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            formatted_stop = stop_timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            self.bkd.delete_api().delete(
+                start=formatted_start,
+                stop=formatted_stop,
+                predicate=delete_predicate,
+                bucket=bucket,
+                org=self.config.org,
+            )
             if self.logger:
-                self.logger.info(f"Deleted data in bucket '{bucket}' between '{formatted_start}' and '{formatted_stop}' with predicate '{delete_predicate}'.")
+                self.logger.info(
+                    f"Deleted data in bucket '{bucket}' between '{formatted_start}' and '{formatted_stop}' with predicate '{delete_predicate}'."
+                )
             return True
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Failed to delete data: {e}")
             return False
-        
+
     def close(self):
         """
         Closes the connection to the InfluxDB instance.
         """
-        if hasattr(self, 'bkd') and self.bkd:
+        if hasattr(self, "bkd") and self.bkd:
             self.bkd.__del__()
             if self.logger:
                 self.logger.info("InfluxDB connection closed.")
@@ -407,7 +424,7 @@ class DBInfluxDB(DBBase):
     def __enter__(self):
         """
         Enables use of the class in 'with' context for managing resources.
-        
+
         Returns:
             self: The instance of `DBInfluxDB`.
         """
@@ -418,6 +435,3 @@ class DBInfluxDB(DBBase):
         Ensures the InfluxDB connection is closed when context is exited.
         """
         self.close()
-
-
- 
