@@ -8,6 +8,7 @@ import pydantic
 from tzlocal import get_localzone
 from influxdb_client.client.write_api import SYNCHRONOUS
 from influxdb_client import InfluxDBClient, Point
+from influxdb_client.domain.organization import Organization
 from .db_base import DBBase, DMBSConfigBase
 import pandas as pd
 import ast
@@ -36,7 +37,7 @@ class InfluxDBConfig(DMBSConfigBase):
     """
 
     url: str = pydantic.Field(default="", description="URL of InfluxDB")
-    org: str = pydantic.Field(default="", description="The Organization of InfluxDB")
+    org: str = pydantic.Field(default=None, description="The Organization of InfluxDB")
     token: str = pydantic.Field(default="", description="InfluxDB authorization token")
 
 
@@ -64,16 +65,15 @@ class DBInfluxDB(DBBase):
         self.bkd = InfluxDBClient(
             url=self.config.url, token=self.config.token, org=self.config.org, **params
         )
-
         try:
             self.bkd.ping()
             if self.logger:
                 self.logger.info("InfluxDB connected successfully")
-            return True
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Failed to connect to InfluxDB: {str(e)}")
-            return False
+
+        return self
 
     def _resolve_bucket_measurement(self, endpoint):
         """
@@ -178,6 +178,7 @@ class DBInfluxDB(DBBase):
         limit=0,
         time_field="_time",
         as_df=False,
+        use_local_tz=False,
         **params,
     ):
         """
@@ -222,6 +223,7 @@ class DBInfluxDB(DBBase):
             self.logger.debug(f"Constructed InfluxDB Query: {query}")
 
         #        try:
+
         result = self.bkd.query_api().query(query)
 
         data = []
@@ -242,7 +244,7 @@ class DBInfluxDB(DBBase):
             "_field",
             "_measurement",
         ]
-        tag_fields = [var for var in df.columns if not (var in not_tag_fields)]
+        tag_fields = [var for var in df.columns if (var not in not_tag_fields)]
 
         # Convert to wide format by pivoting
         wide_df = df.pivot(
@@ -250,13 +252,14 @@ class DBInfluxDB(DBBase):
         ).reset_index()
         wide_df.columns.name = None
         # Get the local timezone
-        local_timezone = get_localzone()
 
         # Apply the local timezone to the '_time' column
-        wide_df["_time"] = pd.to_datetime(wide_df["_time"], utc=True)
-        wide_df["_time"] = wide_df["_time"].dt.tz_convert(local_timezone)
+        wide_df["_time"] = pd.to_datetime(wide_df["_time"])
+        if use_local_tz:
+            local_timezone = get_localzone()
+            wide_df["_time"] = wide_df["_time"].dt.tz_convert(local_timezone)
 
-        wide_df = wide_df.applymap(try_convert_to_dict)
+        wide_df = wide_df.map(try_convert_to_dict)
         # Optionally rename '_time' index back to 'time_field'
         if time_field != "_time":
             wide_df.rename(columns={"_time": time_field}, inplace=True)

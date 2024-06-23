@@ -36,7 +36,7 @@ setup(
     description="",
     license="MIT",
     platforms="ALL",
-    python_requires=">=3.10",
+    python_requires=">=3.9",
     install_requires=[
         "pydantic>=1.10.4",
         "pyyaml>=6.0",
